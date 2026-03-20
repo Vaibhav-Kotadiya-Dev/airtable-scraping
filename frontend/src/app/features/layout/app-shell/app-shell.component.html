@@ -1,0 +1,17 @@
+<mat-toolbar color="primary">
+  <mat-icon aria-hidden="true">storage</mat-icon>
+  <span class="app-title">Airtable Integration</span>
+  <span class="spacer"></span>
+
+  <mat-form-field appearance="fill" class="integration-select">
+    <mat-label>Active Integration</mat-label>
+    <mat-select [(ngModel)]="activeIntegration">
+      <mat-option value="airtable">Airtable</mat-option>
+    </mat-select>
+  </mat-form-field>
+</mat-toolbar>
+
+<mat-card class="page-card">
+  <airtable-dashboard *ngIf="activeIntegration === 'airtable'"></airtable-dashboard>
+</mat-card>
+

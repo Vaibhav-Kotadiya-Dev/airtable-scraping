@@ -1,0 +1,26 @@
+:host {
+  display: block;
+}
+
+.app-title {
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+mat-icon {
+  margin-right: 10px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+.integration-select {
+  min-width: 160px;
+}
+
+.page-card {
+  margin: 16px;
+  padding: 16px;
+}
+

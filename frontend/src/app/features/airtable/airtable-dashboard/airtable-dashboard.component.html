@@ -1,0 +1,273 @@
+<div class="dashboard-shell">
+  <div class="hero-grid">
+    <mat-card class="hero-card hero-card-wide">
+      <div class="section-heading">
+        <div>
+          <div class="eyebrow">Airtable Review Dashboard</div>
+          <h2><mat-icon class="title-icon">dashboard</mat-icon> Sync tasks and review revision history</h2>
+          <p>
+            Connect Airtable, sync records, save the revision-history web session, and inspect assignee/status changes in one place.
+          </p>
+        </div>
+        <div class="hero-actions">
+          <button
+            mat-raised-button
+            color="primary"
+            (click)="connectToAirtable()"
+            [disabled]="connectLoading || syncLoading"
+          >
+            Connect Airtable
+          </button>
+          <button
+            mat-stroked-button
+            (click)="syncNow()"
+            [disabled]="connectLoading || syncLoading || !hasIntegration"
+          >
+            Sync Records
+          </button>
+        </div>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-item">
+          <span class="meta-label">Integration</span>
+          <span class="meta-value">{{ hasIntegration ? integrationId : 'Not connected yet' }}</span>
+        </div>
+        <div class="meta-item">
+          <span class="meta-label">Selected entity</span>
+          <span class="meta-value">{{ selectedEntityLabel }}</span>
+        </div>
+      </div>
+    </mat-card>
+
+    <mat-card class="metric-card">
+      <div class="metric-label">Synced records</div>
+      <div class="metric-value">{{ ticketCount }}</div>
+      <div class="metric-footnote">Loaded for the selected entity</div>
+    </mat-card>
+
+    <mat-card class="metric-card">
+      <div class="metric-label">Revision events</div>
+      <div class="metric-value">{{ revisionCount }}</div>
+      <div class="metric-footnote">Stored status and assignee changes</div>
+    </mat-card>
+  </div>
+
+  <div class="error-banner" *ngIf="errorMessage">
+    {{ errorMessage }}
+  </div>
+
+  <mat-card class="section-card">
+    <div class="section-heading compact">
+      <div>
+        <h3><mat-icon class="title-icon">table_view</mat-icon> Records</h3>
+        <p>Choose an Airtable table and browse the synced rows.</p>
+      </div>
+    </div>
+
+    <div class="section-meta-row">
+      <div class="section-meta-item">
+        <span class="section-meta-label">Current table</span>
+        <span class="section-meta-value">{{ selectedEntityLabel }}</span>
+      </div>
+      <div class="section-meta-item">
+        <span class="section-meta-label">Rows loaded</span>
+        <span class="section-meta-value">{{ ticketCount }}</span>
+      </div>
+    </div>
+
+    <div class="controls-grid">
+      <mat-form-field appearance="fill" class="entity-select">
+        <mat-label>Entity</mat-label>
+        <mat-select
+          [value]="selectedEntity?.value ?? null"
+          (selectionChange)="onEntitySelected($event.value)"
+        >
+          <mat-option *ngFor="let e of entities" [value]="e.value">
+            {{ e.label }}
+          </mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="fill" class="search-field">
+        <mat-label>Search records</mat-label>
+        <input
+          matInput
+          [(ngModel)]="searchText"
+          (ngModelChange)="onSearchTextChanged()"
+          placeholder="Filter across all columns"
+        />
+      </mat-form-field>
+    </div>
+
+    <div class="grid-shell grid-shell-lg">
+      <ag-grid-angular
+        class="ag-theme-alpine custom-grid-theme records-grid"
+        style="width: 100%; height: 620px"
+        [rowData]="rowData"
+        [columnDefs]="columnDefs"
+        [defaultColDef]="defaultColDef"
+        [overlayNoRowsTemplate]="recordsOverlayNoRowsTemplate"
+        (gridReady)="onGridReady($event)"
+        (filterChanged)="onRecordsFilterChanged()"
+      />
+    </div>
+  </mat-card>
+
+  <div class="two-column-layout">
+    <mat-card class="section-card">
+      <div class="section-heading compact">
+        <div>
+          <h3><mat-icon class="title-icon">vpn_key</mat-icon> Revision History Session</h3>
+          <p>
+            Save the Airtable web-session data used by the revision-history endpoint. For the best result, paste a working
+            <code>Copy as cURL</code> request for <code>readRowActivitiesAndComments</code>.
+          </p>
+        </div>
+        <button
+          mat-stroked-button
+          (click)="refreshRevisionSessionStatus()"
+          [disabled]="revisionSessionLoading || !hasIntegration"
+        >
+          Refresh status
+        </button>
+      </div>
+
+      <div class="session-status-card" *ngIf="revisionSessionStatus">
+        <div class="session-status-header">
+          <span [class]="sessionStatusClass">{{ sessionStatusLabel }}</span>
+          <span class="session-status-caption">Revision history session</span>
+        </div>
+        <div class="session-stats">
+          <div class="session-stat">
+            <span class="session-stat-label">Stored session</span>
+            <span class="session-stat-value">{{ revisionSessionStatus.hasStoredSession ? 'Yes' : 'No' }}</span>
+          </div>
+          <div class="session-stat">
+            <span class="session-stat-label">Request context</span>
+            <span class="session-stat-value">{{ revisionSessionStatus.hasRequestContext ? 'Saved' : 'Missing' }}</span>
+          </div>
+          <div class="session-stat">
+            <span class="session-stat-label">Cookie count</span>
+            <span class="session-stat-value">{{ revisionSessionStatus.cookieCount }}</span>
+          </div>
+          <div class="session-stat">
+            <span class="session-stat-label">Valid for entity</span>
+            <span class="session-stat-value">
+              {{
+                revisionSessionStatus.valid === null
+                  ? 'Not checked'
+                  : revisionSessionStatus.valid
+                    ? 'Yes'
+                    : 'No'
+              }}
+            </span>
+          </div>
+        </div>
+        <div class="session-message">{{ revisionSessionStatus.message }}</div>
+        <div class="session-expiry" *ngIf="revisionSessionStatus.expiresAt">
+          Expires: {{ formatDisplayDate(revisionSessionStatus.expiresAt) }}
+        </div>
+      </div>
+
+      <mat-form-field appearance="fill" class="session-input">
+        <mat-label>Copy as cURL or Cookie header</mat-label>
+        <textarea
+          matInput
+          rows="6"
+          [(ngModel)]="cookieHeaderImport"
+          placeholder="curl 'https://airtable.com/v0.3/row/...' ... or brw=...; _pxhd=...; __Host-airtable-session=..."
+        ></textarea>
+      </mat-form-field>
+
+      <div class="session-actions">
+        <button
+          mat-raised-button
+          color="primary"
+          (click)="importWebSessionCookies()"
+          [disabled]="importLoading || !hasIntegration"
+        >
+          Save session
+        </button>
+      </div>
+
+      <div class="info-banner" [ngClass]="importResultIsError ? 'error' : 'success'" *ngIf="importResultMessage">
+        {{ importResultMessage }}
+      </div>
+    </mat-card>
+
+    <mat-card class="section-card">
+      <div class="section-heading compact">
+        <div>
+          <h3><mat-icon class="title-icon">history</mat-icon> Revision History Run</h3>
+          <p>Fetch up to 200 records and store assignee/status changes for the selected entity.</p>
+        </div>
+        <button
+          mat-raised-button
+          color="accent"
+          (click)="fetchRevisionHistoryForSelectedEntity()"
+          [disabled]="!canFetchRevisionHistory"
+        >
+          Fetch Revision History (200)
+        </button>
+      </div>
+
+      <div class="info-banner success" *ngIf="revisionSummaryMessage">
+        {{ revisionSummaryMessage }}
+      </div>
+      <div class="info-banner error" *ngIf="revisionErrorMessage">
+        {{ revisionErrorMessage }}
+      </div>
+
+      <div class="run-summary">
+        <div class="run-summary-item">
+          <span class="run-summary-label">Selected entity</span>
+          <span class="run-summary-value">{{ selectedEntityLabel }}</span>
+        </div>
+        <div class="run-summary-item">
+          <span class="run-summary-label">Stored events</span>
+          <span class="run-summary-value">{{ revisionCount }}</span>
+        </div>
+      </div>
+    </mat-card>
+  </div>
+
+  <mat-card class="section-card">
+    <div class="section-heading compact">
+      <div>
+        <h3><mat-icon class="title-icon">compare_arrows</mat-icon> Revision History</h3>
+        <p>Most recent assignee and status changes stored for the selected Airtable entity.</p>
+      </div>
+      <div class="section-badge">Showing {{ revisionActivities.length }} events</div>
+    </div>
+
+    <div class="section-meta-row compact-meta">
+      <div class="section-meta-item">
+        <span class="section-meta-label">Latest changes</span>
+        <span class="section-meta-value">Status and assignee activity only</span>
+      </div>
+      <div class="section-meta-item">
+        <span class="section-meta-label">Events shown</span>
+        <span class="section-meta-value">{{ revisionCount }}</span>
+      </div>
+    </div>
+
+    <div class="grid-shell grid-shell-md">
+      <ag-grid-angular
+        class="ag-theme-alpine custom-grid-theme revision-grid"
+        style="width: 100%; height: 420px"
+        [rowData]="revisionActivities"
+        [columnDefs]="revisionColumnDefs"
+        [defaultColDef]="defaultColDef"
+        [overlayNoRowsTemplate]="revisionOverlayNoRowsTemplate"
+        (gridReady)="onRevisionGridReady($event)"
+        (filterChanged)="onRevisionFilterChanged()"
+      />
+    </div>
+  </mat-card>
+</div>
+
+<div class="loading-overlay" *ngIf="connectLoading || syncLoading || revisionLoading">
+  <mat-progress-spinner mode="indeterminate" diameter="48"></mat-progress-spinner>
+  <div class="loading-text">Working…</div>
+</div>
+
